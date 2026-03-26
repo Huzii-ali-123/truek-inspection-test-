@@ -12,7 +12,7 @@ const pricing = [
     id: "10201",
     plan: "Our Plan",
     displayPrice: "$49",
-    // Ensure this ID is copied directly from your LIVE Paddle Dashboard
+    // CRITICAL: Verify this is a LIVE price ID from the dashboard
     priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_ID || "pri_01kmj8139rhqsreprqqjds5zcd", 
     features: [
       "1 Vehicle Report",
@@ -32,19 +32,20 @@ export default function PricingPage() {
 
   useEffect(() => {
     const init = async () => {
-      const paddleInstance = await initializePaddle({ 
-        // CRITICAL: Ensure your token starts with 'live_' for production
-        environment: "production", 
-        token: process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || "",
-        eventCallback: async (event: any) => {
-          if (event.name === "checkout.completed") {
-            const customerInfo = event.data.customer || {};
-            const checkoutDetails = event.data.details?.totals || {};
-            
-            const storedVin = localStorage.getItem("temp_vin") || "N/A";
-            const storedName = localStorage.getItem("temp_name") || customerInfo.name || "Customer";
+      try {
+        const paddleInstance = await initializePaddle({ 
+          environment: "production", // Must be production for live tokens
+          token: process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || "",
+          eventCallback: async (event: any) => {
+            console.log("Paddle Event:", event.name, event.data); // Debug logging
 
-            try {
+            if (event.name === "checkout.completed") {
+              const customerInfo = event.data.customer || {};
+              const checkoutDetails = event.data.details?.totals || {};
+              
+              const storedVin = localStorage.getItem("temp_vin") || "N/A";
+              const storedName = localStorage.getItem("temp_name") || customerInfo.name || "Customer";
+
               await sendPaymentSuccessEmails({
                 email: customerInfo.email || "No Email Provided",
                 name: storedName,
@@ -53,45 +54,40 @@ export default function PricingPage() {
                 amount: checkoutDetails.total ? (Number(checkoutDetails.total) / 100).toFixed(2) : "49.00"
               });
               window.location.href = "/payment-success";
-            } catch (error) {
-              console.error("Email action failed:", error);
-              window.location.href = "/payment-success"; // Redirect anyway so user isn't stuck
+            }
+
+            // Capture specific frontend errors from Paddle
+            if (event.name === "checkout.error") {
+              console.error("Paddle Checkout Error:", event.data);
             }
           }
-        }
-      });
+        });
 
-      if (paddleInstance) setPaddle(paddleInstance);
+        if (paddleInstance) setPaddle(paddleInstance);
+      } catch (e) {
+        console.error("Failed to init Paddle:", e);
+      }
     };
 
     init();
-
-    const savedVin = localStorage.getItem("temp_vin");
-    if (savedVin) setVin(savedVin);
+    setVin(localStorage.getItem("temp_vin") || "");
   }, []);
 
   const handleCheckout = (priceId: string) => {
     if (!paddle) {
-      console.error("Paddle not initialized. Check your Client Token.");
+      alert("Payment system is still loading. Please wait a second.");
       return;
     }
 
-    // UPDATED: Using a cleaner open call
     paddle.Checkout.open({
       settings: {
         displayMode: "overlay",
         theme: "light",
-        locale: "en"
       },
-      items: [
-        { 
-          priceId: priceId, 
-          quantity: 1 
-        }
-      ],
-      // If the 400 persists, try commenting out 'customData' to see if it's the cause
+      items: [{ priceId: priceId, quantity: 1 }],
+      // Use a simple key for customData to avoid schema issues
       customData: { 
-        vin_number: vin || "not_provided" 
+        vin: vin || "not_provided" 
       },
     });
   };
@@ -103,35 +99,35 @@ export default function PricingPage() {
         <div className="py-16 px-4">
           <div className="container mx-auto text-center mb-12">
               <h2 className="text-4xl font-bold mb-4">Complete Your Booking</h2>
-              <p className="text-gray-600">
+              <p className="text-gray-600 text-lg">
                 Confirm your plan below for VIN:{" "}
-                <span className="font-bold text-custom_red">{vin || "Loading..."}</span>
+                <span className="font-bold text-custom_red uppercase">{vin || "Loading..."}</span>
               </p>
           </div>
 
           <div className="grid max-w-xl mx-auto">
             {pricing.map((plan) => (
-              <div key={plan.id} className="relative bg-white rounded-2xl p-6 border border-gray-200 shadow-lg">
+              <div key={plan.id} className="relative bg-white rounded-2xl p-8 border border-gray-200 shadow-xl">
                 <div className="absolute inset-x-0 top-0 h-2 bg-custom_red rounded-t-2xl" />
-                <h3 className="text-custom_red text-xl font-semibold mb-1">{plan.plan}</h3>
+                <h3 className="text-custom_red text-2xl font-bold mb-2">{plan.plan}</h3>
                 <div className="mb-8">
-                  <p className="text-4xl font-bold text-custom_red">{plan.displayPrice}</p>
+                  <p className="text-5xl font-extrabold text-custom_red">{plan.displayPrice}</p>
                 </div>
 
-                <div className="space-y-4 mb-8 text-left">
+                <div className="space-y-4 mb-10 text-left">
                   {plan.features.map((feature, i) => (
-                    <div key={i} className="flex items-start">
-                      <span className="text-custom_red mr-2">✔️</span>
-                      <span className="text-gray-600">{feature}</span>
+                    <div key={i} className="flex items-center gap-3">
+                      <span className="text-green-500 font-bold">✓</span>
+                      <span className="text-gray-700">{feature}</span>
                     </div>
                   ))}
                 </div>
 
                 <Button 
-                    className="w-full bg-custom_red hover:bg-[#d42a2a] text-white transition-colors"
+                    className="w-full py-6 text-lg font-bold bg-custom_red hover:bg-[#b02222] text-white shadow-lg transition-all"
                     onClick={() => handleCheckout(plan.priceId)}
                 >
-                  Buy Now
+                  Confirm & Pay Now
                 </Button>
               </div>
             ))}
