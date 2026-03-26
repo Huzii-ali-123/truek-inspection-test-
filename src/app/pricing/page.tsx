@@ -12,7 +12,8 @@ const pricing = [
     id: "10201",
     plan: "Our Plan",
     displayPrice: "$49",
-    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_ID || "pri_01kmjg2vmee9qsrhdqhqj6stv1", 
+    // Ensure this ID is copied directly from your LIVE Paddle Dashboard
+    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_ID || "pri_01kmj8139rhqsreprqqjds5zcd", 
     features: [
       "1 Vehicle Report",
       "Vehicle Specification",
@@ -30,34 +31,40 @@ export default function PricingPage() {
   const [paddle, setPaddle] = useState<Paddle | undefined>();
 
   useEffect(() => {
-    initializePaddle({ 
-      environment: "production", 
-      token: process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || "",
-      eventCallback: async (event: any) => {
-        if (event.name === "checkout.completed") {
-          const customerInfo = event.data.customer || {};
-          const checkoutDetails = event.data.details?.totals || {};
-          
-          // 👇 FIX: Pull the saved Name and VIN from the Homepage Form
-          const storedVin = localStorage.getItem("temp_vin") || "N/A";
-          const storedName = localStorage.getItem("temp_name") || customerInfo.name || "Customer";
+    const init = async () => {
+      const paddleInstance = await initializePaddle({ 
+        // CRITICAL: Ensure your token starts with 'live_' for production
+        environment: "production", 
+        token: process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || "",
+        eventCallback: async (event: any) => {
+          if (event.name === "checkout.completed") {
+            const customerInfo = event.data.customer || {};
+            const checkoutDetails = event.data.details?.totals || {};
+            
+            const storedVin = localStorage.getItem("temp_vin") || "N/A";
+            const storedName = localStorage.getItem("temp_name") || customerInfo.name || "Customer";
 
-          console.log("Payment Success! Data found:", { storedName, storedVin });
-
-          await sendPaymentSuccessEmails({
-            email: customerInfo.email || "No Email Provided",
-            name: storedName, // Now passing the actual name
-            vin: storedVin,   // Now passing the actual VIN
-            orderId: event.data.id || "N/A",
-            amount: checkoutDetails.total ? (parseInt(checkoutDetails.total) / 100).toFixed(2) : "49.00"
-          });
-
-          window.location.href = "/payment-success";
+            try {
+              await sendPaymentSuccessEmails({
+                email: customerInfo.email || "No Email Provided",
+                name: storedName,
+                vin: storedVin,
+                orderId: event.data.id || "N/A",
+                amount: checkoutDetails.total ? (Number(checkoutDetails.total) / 100).toFixed(2) : "49.00"
+              });
+              window.location.href = "/payment-success";
+            } catch (error) {
+              console.error("Email action failed:", error);
+              window.location.href = "/payment-success"; // Redirect anyway so user isn't stuck
+            }
+          }
         }
-      }
-    }).then((paddleInstance) => {
+      });
+
       if (paddleInstance) setPaddle(paddleInstance);
-    });
+    };
+
+    init();
 
     const savedVin = localStorage.getItem("temp_vin");
     if (savedVin) setVin(savedVin);
@@ -65,13 +72,27 @@ export default function PricingPage() {
 
   const handleCheckout = (priceId: string) => {
     if (!paddle) {
-      console.error("Paddle not initialized");
+      console.error("Paddle not initialized. Check your Client Token.");
       return;
     }
 
+    // UPDATED: Using a cleaner open call
     paddle.Checkout.open({
-      items: [{ priceId: priceId, quantity: 1 }],
-      customData: { vin_number: vin },
+      settings: {
+        displayMode: "overlay",
+        theme: "light",
+        locale: "en"
+      },
+      items: [
+        { 
+          priceId: priceId, 
+          quantity: 1 
+        }
+      ],
+      // If the 400 persists, try commenting out 'customData' to see if it's the cause
+      customData: { 
+        vin_number: vin || "not_provided" 
+      },
     });
   };
 
@@ -107,7 +128,7 @@ export default function PricingPage() {
                 </div>
 
                 <Button 
-                    className="w-full bg-custom_red hover:hover:bg-[#70c1e3]"
+                    className="w-full bg-custom_red hover:bg-[#d42a2a] text-white transition-colors"
                     onClick={() => handleCheckout(plan.priceId)}
                 >
                   Buy Now
