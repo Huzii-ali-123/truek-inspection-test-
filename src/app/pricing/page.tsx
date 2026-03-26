@@ -12,7 +12,7 @@ const pricing = [
     id: "10201",
     plan: "Our Plan",
     displayPrice: "$49",
-    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_ID || "pri_01kmj8139rhqsreprqqjds5zcd", 
+    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_ID || "pri_01kmjg2vmee9qsrhdqhqj6stv1", 
     features: [
       "1 Vehicle Report",
       "Vehicle Specification",
