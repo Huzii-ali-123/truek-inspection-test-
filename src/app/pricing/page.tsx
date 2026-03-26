@@ -74,23 +74,27 @@ export default function PricingPage() {
   }, []);
 
   const handleCheckout = (priceId: string) => {
-    if (!paddle) {
-      alert("Payment system is still loading. Please wait a second.");
-      return;
-    }
+  if (!paddle) return;
 
-    paddle.Checkout.open({
-      settings: {
-        displayMode: "overlay",
-        theme: "light",
-      },
-      items: [{ priceId: priceId, quantity: 1 }],
-      // Use a simple key for customData to avoid schema issues
-      customData: { 
-        vin: vin || "not_provided" 
-      },
-    });
-  };
+  paddle.Checkout.open({
+    settings: {
+      displayMode: "overlay",
+      theme: "light",
+    },
+    items: [
+      { 
+        priceId: priceId, // Ensure this is definitely a LIVE ID
+        quantity: 1 
+      }
+    ],
+    // Temporarily comment this out to see if the error clears:
+    /*
+    customData: { 
+      vin: vin || "test_vin" 
+    },
+    */
+  });
+};
 
   return (
     <main className="max-w-[1920px] mx-auto relative overflow-hidden">
